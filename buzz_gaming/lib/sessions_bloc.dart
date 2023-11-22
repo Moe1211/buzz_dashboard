@@ -19,7 +19,7 @@ class SessionsBloc extends Bloc<SessionsEvent, SessionsState> {
       // Make API request to start a session
       // You can use Dio, http package, or any other HTTP client
       final response =
-          await http.post(Uri(scheme: "127.0.0.1:8888/startsession")
+          await http.post(Uri(scheme: "localhost:8888/user/startsession")
               // Provide necessary headers, body, etc.
               );
 
@@ -39,8 +39,8 @@ class SessionsBloc extends Bloc<SessionsEvent, SessionsState> {
   viewSessions(ViewSessionsHistoryEvent event, emit) async {
     try {
       // Make API request to view sessions history
-      final response =
-          await http.post(Uri(scheme: "127.0.0.1:8888/viewsessionshistory"));
+      final response = await http
+          .post(Uri(scheme: "localhost:8888/user/viewsessionshistory"));
 
       if (response.statusCode == 200) {
         // Parse the response and handle the sessions history
