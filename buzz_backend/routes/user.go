@@ -14,6 +14,8 @@ func UserRoutes(c *gin.Engine) {
 	{
 		// Existing routes
 		user.POST("/startsession", controls.StartSession)
+		user.POST("/closesession", controls.CloseSession)
+
 		user.GET("/returnbuffetorder", controls.ReturnBuffetOrder)
 		user.POST("/addfoodanddrink", controls.AddBeverageToBuffetOrder)
 		user.POST("/addbeverage", controls.AddBeverageToBuffetOrder)

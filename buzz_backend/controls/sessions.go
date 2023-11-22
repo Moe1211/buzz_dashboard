@@ -20,22 +20,27 @@ func StartSession(c *gin.Context) {
 		return
 	}
 
+	// Check if there is an ongoing session for the specified room_id
+	db := config.DB
+	var existingSession models.Session
+	result := db.Where("room_id = ? AND end_time IS NULL", request.RoomID).First(&existingSession).Error
+	if result == nil {
+		// A session is already ongoing for this room_id
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session already ongoing for this room_id"})
+		return
+	}
+
 	// Create a new session instance
 	newSession := models.Session{
-		UserID:     1, // Replace with the actual user_id
+		UserID:     1, // Replace with the actual user_id // 1 == Guest
 		RoomID:     request.RoomID,
 		StartTime:  time.Now(),
 		EndTime:    time.Time{}, // Initialize to zero value, indicating the session is ongoing
 		TotalPrice: 0,           // Initialize to zero value, update as needed
 	}
 
-	db := config.DB
-	result := db.First(&newSession, "room_id = ?", newSession.RoomID).Error
-	if result != nil {
-		db.Create(&newSession)
-	} else {
-		db.Model(&newSession).Where("room_id = ?", newSession.RoomID).Update("start_time", time.Now())
-	}
+	// Create the new session
+	db.Create(&newSession)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Session started successfully"})
 }
@@ -56,26 +61,43 @@ func CloseSession(c *gin.Context) {
 	var session models.Session
 	result := db.Where("room_id = ? AND end_time IS NULL", request.RoomID).First(&session).Error
 
-	if result != nil {
+	if result == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found or already closed"})
 		return
 	}
 
-	db.Model(&session).Update("end_time", time.Now())
+	// Calculate the duration of stay in hours
+	startTime := session.StartTime
+	endTime := time.Now()
+	duration := endTime.Sub(startTime).Hours()
 
-	// Move the session to sessions_history
-	sessionHistory := models.SessionHistory{
-		UserID:     session.UserID,
-		RoomID:     session.RoomID,
-		StartTime:  session.StartTime,
-		EndTime:    session.EndTime,
-		TotalPrice: session.TotalPrice,
-	}
-	db.Create(&sessionHistory)
+	// Format the end time to your desired format
+	// endTimeFormatted := endTime.Format("2006-01-02 15:04:05.000000-07:00")
 
 	// Calculate total price of all items in buffet_order
 	var totalPrice float64
-	db.Model(&sessionHistory).Select("COALESCE(SUM(price * quantity), 0) as total_price").Joins("JOIN buffet_orders ON buffet_orders.room_id = session_history.room_id").Joins("JOIN food_and_drinks ON food_and_drinks.item_id = buffet_orders.item_id").Scan(&totalPrice)
+	db.Model(&totalPrice).
+		Select("COALESCE(SUM(food_and_drinks.price * buffet_orders.quantity), 0) + ? as total_price", duration*100).
+		Joins("JOIN buffet_orders ON buffet_orders.room_id = ?", request.RoomID).
+		Joins("JOIN food_and_drinks ON food_and_drinks.item_id = buffet_orders.item_id").
+		Scan(&totalPrice)
+
+	// Update the total price and end time in the session
+	db.Model(&session).Updates(models.Session{
+		TotalPrice: totalPrice,
+		EndTime:    endTime,
+	})
+
+	// Move the session to sessions_history
+	sessionHistory := models.SessionHistory{
+		UserID:    session.UserID,
+		RoomID:    session.RoomID,
+		StartTime: startTime,
+		// TODO Fix endTime/Duration
+		EndTime:    endTime,
+		TotalPrice: totalPrice,
+	}
+	db.Create(&sessionHistory)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Session closed successfully", "total_price": totalPrice})
 }
