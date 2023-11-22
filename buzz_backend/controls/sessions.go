@@ -75,7 +75,7 @@ func CloseSession(c *gin.Context) {
 	// endTimeFormatted := endTime.Format("2006-01-02 15:04:05.000000-07:00")
 
 	// Calculate total price of all items in buffet_order
-	var totalPrice float64
+	var totalPrice float64 // TODO what is this ? there is no model/table for totalPrice
 	db.Model(&totalPrice).
 		Select("COALESCE(SUM(food_and_drinks.price * buffet_orders.quantity), 0) + ? as total_price", duration*100).
 		Joins("JOIN buffet_orders ON buffet_orders.room_id = ?", request.RoomID).
